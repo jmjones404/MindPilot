@@ -19,7 +19,30 @@ export default function App() {
   const [page, setPage] = useState(pageFromHash), [settings, setSettings] = useState(false), [editor, setEditor] = useState<{ task?: Task; date?: string } | null>(null);
   const [incoming, setIncoming] = useState({ text: '', key: 0 }), [online, setOnline] = useState(navigator.onLine), [cached, setCached] = useState(false), [swError, setSwError] = useState(false);
   const main = useRef<HTMLElement>(null);
-  const { offlineReady: [offlineReady], needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({ onRegisterError() { setSwError(true); } });
+  const registration = useRef<ServiceWorkerRegistration | undefined>(undefined);
+  const { offlineReady: [offlineReady], needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisteredSW(_url, current) {
+      registration.current = current;
+      if (navigator.onLine && current?.active && !current.installing) void current.update().catch(() => {});
+    },
+    onRegisterError() { setSwError(true); },
+  });
+  useEffect(() => {
+    const checkForUpdate = () => {
+      const current = registration.current;
+      if (navigator.onLine && document.visibilityState === 'visible' && current?.active && !current.installing) void current.update().catch(() => {});
+    };
+    window.addEventListener('online', checkForUpdate);
+    window.addEventListener('focus', checkForUpdate);
+    document.addEventListener('visibilitychange', checkForUpdate);
+    const interval = window.setInterval(checkForUpdate, 60 * 60 * 1000);
+    return () => {
+      window.removeEventListener('online', checkForUpdate);
+      window.removeEventListener('focus', checkForUpdate);
+      document.removeEventListener('visibilitychange', checkForUpdate);
+      window.clearInterval(interval);
+    };
+  }, []);
   useEffect(() => {
     const hash = () => setPage(pageFromHash()), network = () => setOnline(navigator.onLine);
     window.addEventListener('hashchange', hash); window.addEventListener('online', network); window.addEventListener('offline', network);

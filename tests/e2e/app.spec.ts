@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 async function nav(page: Page, name: string) { await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name, exact: true }).click(); }
-test.beforeEach(async ({ page }) => { await page.clock.install({ time: new Date('2026-11-25T17:00:00-05:00') }); await page.goto('/'); await expect(page.getByRole('heading', { name: 'Good evening.' })).toBeVisible(); });
+test.beforeEach(async ({ page }) => { await page.clock.install({ time: new Date('2026-11-25T17:00:00-05:00') }); await page.goto('./'); await expect(page.getByRole('heading', { name: 'Good evening.' })).toBeVisible(); });
 test('capture, explicit confirmation, completion, persistence and offline editing', async ({ page, context }) => {
   await page.getByLabel("What's on your mind?", { exact: true }).fill('I need groceries tomorrow and have to clean my apartment');
   await page.getByRole('button', { name: 'Organize my thoughts' }).click();
@@ -80,8 +80,8 @@ test('failed writes do not show success or discard suggestions', async ({ page }
   await expect(page.getByRole('heading', { name: 'A little less on your mind.' })).toHaveCount(0);
 });
 test('manifest, home-screen assets, navigation, dark mode and mobile overflow', async ({ page, request }) => {
-  const manifest = await (await request.get('/manifest.webmanifest')).json();
-  expect(manifest.display).toBe('standalone'); expect(manifest.start_url).toBe('/'); expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true);
+  const manifest = await (await request.get('manifest.webmanifest')).json();
+  expect(manifest.display).toBe('standalone'); expect(manifest.start_url).toBe('/MindPilot/'); expect(manifest.scope).toBe('/MindPilot/'); expect(manifest.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true);
   for (const icon of manifest.icons) expect((await request.get(icon.src)).ok()).toBe(true);
   await page.getByRole('button', { name: 'Open settings', exact: true }).click();
   await page.getByRole('button', { name: 'Dark', exact: true }).click();
