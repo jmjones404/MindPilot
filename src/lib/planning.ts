@@ -1,10 +1,10 @@
 import type { Task, TaskDraft } from '../types';
 import { dateTime } from './dates';
-export function conflicts(draft: Pick<TaskDraft, 'date' | 'time' | 'duration'>, tasks: Task[], excludeId?: string): Task[] {
-  if (!draft.date || !draft.time) return [];
+export function conflicts(draft: Pick<TaskDraft, 'date' | 'time' | 'duration' | 'kind'>, tasks: Task[], excludeId?: string): Task[] {
+  if (draft.kind === 'note' || !draft.date || !draft.time) return [];
   const start = dateTime(draft.date, draft.time), end = start + draft.duration * 60_000;
   return tasks.filter(task => {
-    if (task.id === excludeId || !task.date || !task.time || task.completedAt) return false;
+    if (task.kind === 'note' || task.id === excludeId || !task.date || !task.time || task.completedAt) return false;
     const other = dateTime(task.date, task.time);
     return start < other + task.duration * 60_000 && end > other;
   });

@@ -36,7 +36,7 @@ test('capture, explicit confirmation, completion, persistence and offline editin
 test('workout template, missing-context question, conflict review, edits and confirmation', async ({ page }) => {
   await page.getByRole('button', { name: '“Need the gym tonight”' }).click();
   await expect(page.getByRole('heading', { name: 'A little context would help' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Confirm 1 activity' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Confirm 1 activity' })).toBeEnabled();
   await page.getByRole('button', { name: 'Set workout preferences' }).click();
   await page.getByRole('button', { name: 'Review template' }).click();
   await expect(page.getByText('This is an example template.', { exact: false })).toBeVisible();
@@ -44,13 +44,13 @@ test('workout template, missing-context question, conflict review, edits and con
   await expect(page.getByRole('heading', { name: 'Push workout', exact: true })).toBeVisible();
   await nav(page, 'Planner');
   await page.getByRole('button', { name: 'Add activity', exact: true }).first().click();
-  await page.getByLabel('Activity name', { exact: true }).fill('Dinner');
-  await page.getByLabel('Start time', { exact: true }).fill('19:00');
-  await page.getByLabel('Duration (minutes)', { exact: true }).fill('60');
+  await page.getByRole('dialog').getByLabel('Activity name', { exact: true }).fill('Dinner');
+  await page.getByRole('dialog').getByLabel('Start time', { exact: true }).fill('19:00');
+  await page.getByRole('dialog').getByLabel('Duration (minutes)', { exact: true }).fill('60');
   await page.getByRole('dialog').getByRole('button', { name: 'Add activity', exact: true }).click();
   await nav(page, 'MindDump');
   await page.getByRole('button', { name: 'Check saved routines' }).click();
-  await expect(page.getByLabel('Activity name', { exact: true })).toHaveValue('Push workout');
+  await expect(page.locator('.review-card').filter({ hasText: 'Suggested task 2' }).getByLabel('Activity name', { exact: true })).toHaveValue('Push workout');
   await expect(page.getByLabel('Start time', { exact: true })).toHaveValue('19:00');
   await expect(page.getByText('Your proposed schedule has overlaps')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirm 1 activity' })).toBeDisabled();

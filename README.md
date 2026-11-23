@@ -29,9 +29,9 @@ The development server deliberately does not register a service worker. Build an
 ## What works
 
 - **Home:** local greeting and date, top priorities, upcoming activities, completion ring, natural-language capture, and one-tap completion.
-- **MindDump:** basic offline extraction, category suggestions, explicit times, today/tonight/tomorrow, weekdays and ISO dates. Every proposal can be edited or deselected before a transactional confirmation.
-- **Planner:** daily and weekly views, editable tasks, priority flags, categories, dates, start times, duration, notes, completion, deletion, and rescheduling. Conflicts include events crossing midnight. Keeping an overlap requires explicit acknowledgement.
-- **My Rhythm:** recurring routines, preferred activity times, workout exercises/duration, goals, preferences, category management, and routine check-ins. All personal records are visible, editable, and deletable.
+- **MindDump:** offline grammar-based extraction of tasks, reminders, events and notes; editable categories/subcategories; named, relative and ISO dates; explicit times; clear uncertainty notices. The review area receives focus, and only selected proposals are saved after confirmation. Input is preserved, with an explicit 20,000-character processing limit and no twelve-item cutoff.
+- **Planner:** daily, weekly and all-date views; category/subcategory filters; editable tasks, priority flags, dates, times, duration, notes, completion, deletion, and rescheduling. Completed undated activities remain accessible with Show completed enabled. Notes appear in the planner without completion checkboxes. Conflicts include events crossing midnight. Keeping an overlap requires explicit acknowledgement.
+- **My Rhythm:** everyday and workout routines, preferred activity times/days, goals, explicitly enabled organizing preferences, remembered category corrections, category descriptions/subcategories, and routine check-ins. All personal records are visible, editable, and deletable.
 - **Progress:** weekly completion counts, daily planned-day percentages, historical weekly charts, and six weeks of routine consistency. Textual figures accompany the canvas chart.
 - **PWA:** standalone manifest, PNG and maskable icons, iOS home-screen metadata, offline app shell, update prompt, local storage persistence request, and install instructions.
 - **UX:** responsive desktop sidebar and mobile bottom navigation, touch targets, labelled fields, native modal focus handling, keyboard focus indicators, reduced-motion support, and light/dark/system themes.
@@ -46,26 +46,34 @@ The development server deliberately does not register a service worker. Build an
 6. Review the source facts, editable suggested sets/reps, local start time, duration, and any conflicts. If the preferred time has already passed, the planner proposes a future quarter-hour with at least 15 minutes of lead time. If tonight cannot fit the routine, it asks for another date.
 7. Edit anything, then **Confirm 1 activity**. Success appears only after IndexedDB commits. Reload to see the saved workout.
 
-If there are no workout preferences, the app asks for them and preserves the unsaved thought while you visit My Rhythm. Workouts need a preferred time and exercise list; no personal history is invented. Exercises use a basic, editable three-set, 8–12-repetition template, not personalized training advice. The automated workout test uses a controlled Wednesday at 5 PM and a conflicting dinner to verify this flow reproducibly.
+If there are no workout preferences, the activity remains editable and saveable. Adding a workout routine is optional, and the unsaved thought stays available while you visit My Rhythm. Workouts need a preferred time and exercise list; no personal history is invented. Exercises use a basic, editable three-set, 8–12-repetition template, not personalized training advice. The automated workout test uses a controlled Wednesday at 5 PM and a conflicting dinner to verify this flow reproducibly.
 
-## What is rules-based, and what needs AI
+## Offline organizing and personalization
 
-There is **no connected AI model** and no simulated model response. `OfflineAssistant` uses deliberately limited parsing rules. Workout exercise names, day, time, and duration come from explicitly saved routines; sets and repetitions are transparent defaults. An emotion such as “I'm stressed” is not automatically made into a task.
+There is no connected AI model, cloud inference service, or secret API key. The organizer uses the compact `compromise/two` grammar tagger, contextual category rules, date parsing, and explicitly enabled preferences. Grammar processing runs in a lazily initialized Web Worker to keep the interface responsive. If workers are blocked, the same deterministic organizer loads in compatibility mode. Both paths are part of the offline app cache.
 
-The `AssistantService` interface separates interpretation from storage. A future AI adapter should call a same-origin **server endpoint**, validate its response into the `Interpretation` contract, identify its provider as `ai`, and return proposals through the existing review UI. Keep all provider keys on the server. Send only the context the user has authorized. Fall back to `OfflineAssistant` on disconnection, timeout, or service errors. An interpretation provider must never save tasks itself.
+The complete accepted message is processed. Separate predicates become separate editable suggestions; grocery lists and coordinated names stay together. Negated/completed statements and feelings are offered as unselected notes. Unclear language stays editable rather than disappearing. English is currently supported; interpretation is deliberately conservative and cannot understand every phrasing.
 
-Free-text goals and preferences are visible memory notes. The current interpreter uses structured workout routines and saved category names; it does not claim to understand every preference note. Ambiguous or unsupported date phrases should be corrected in review. English is the current extraction language.
+Named dates such as December 1, ISO dates, weekdays, today/tomorrow, and relative days/weeks are supported. A date at the start of a coordinated sentence can apply to its activities. Ambiguous numeric dates, multiple conflicting dates, vague timing and repeating schedules require review. A recognized time with an unknown date never silently becomes today. A named date without a year uses its next occurrence; “next Monday” uses its next occurrence and displays a review warning. Recurring schedules do not create an unlimited series of tasks.
+
+Reminders are saved planner items, not background notifications. Notes do not count as tasks in progress statistics or create scheduling conflicts. Category suggestions use broad editable definitions and bounded contextual rules; they are suggestions, not confidence-calibrated semantic predictions.
+
+In **My Rhythm → Preferences**, users may keep an ordinary text note or explicitly enable an organizing preference. Enabled preferences match an example exactly or by shared subject words and may suggest a category, subcategory, time, and days. Explicit dates/times take priority. A preferred time needs a date. Everyday routines can also supply timing and duration when their subject matches. Conflicting preferences are surfaced for review.
+
+Changing a category does not teach the app automatically. The review offers an unchecked **Remember this category** option. Selecting it and confirming that item saves a scoped preference locally. Deselecting the item saves neither it nor its correction. Preferences remain visible, editable, and deletable in My Rhythm; a common verb alone does not match unrelated activities.
+
+The `AssistantService` contract separates interpretation from storage. Any future semantic adapter must run locally, return editable proposals, and preserve the deterministic fallback. A small Transformers.js model was evaluated separately; no model weights or inference runtime are shipped with MindPilot. See [the measured evaluation and limitations](docs/offline-semantics-evaluation.md).
 
 ## Storage and statistics
 
-IndexedDB database `mindpilot-local-v1` contains versioned application data. Each mutation reads the latest state and writes it in a single transaction. This prevents lost writes across tabs and provides all-or-nothing saves for multi-task proposals. A BroadcastChannel and focus refresh keep tabs up to date. The UI reports a write failure and retains the user's draft.
+IndexedDB database `mindpilot-local-v1` and its existing store are retained. Application data format 2 adds item types, subcategories, and optional structured preferences. Migration preserves identifiers, content, routines, memories, check-ins, and custom category names; it is persisted with the next successful transaction. Unknown formats fail safely instead of replacing records with an empty app. Each mutation reads the latest state and writes it in a single transaction. This prevents lost writes across tabs and provides all-or-nothing saves for multi-task proposals. A BroadcastChannel and focus refresh keep tabs up to date. The UI reports a write failure and retains the user's draft.
 
 Records stay in this browser and origin. They are not uploaded, synced to another device, or encrypted by the app. Clearing browser storage or using temporary/private browsing can remove them. Moving between localhost and a deployed site uses different storage. The “Request persistent storage” button asks the browser to reduce automatic eviction; it does not provide a backup.
 
-Statistics are defined explicitly:
+Notes are excluded from task completion statistics. Statistics are defined explicitly:
 
 - **Tasks completed this week:** tasks whose completion timestamp falls within the selected local Monday–Sunday week.
-- **Daily/weekly completion:** completed tasks divided by tasks assigned to that day/week. Undated tasks use their completion day, or their creation day while unfinished. Completing a late task updates its scheduled-day completion rate while its actual completion is counted on the day it was marked done.
+- **Daily/weekly completion:** completed non-note items divided by tasks assigned to that day/week. Undated tasks use their completion day, or their creation day while unfinished. Completing a late task updates its scheduled-day completion rate while its actual completion is counted on the day it was marked done.
 - **Routine consistency:** explicit check-ins divided by scheduled routine occurrences, starting at creation and ending at today. Routine check-ins are separate from completing scheduled tasks. Current recurrence settings determine expected historical days. Future days do not count.
 - Editing or deleting a record recalculates the charts. This MVP does not maintain immutable historical snapshots or an audit log.
 
@@ -121,4 +129,4 @@ Relevant upstream documentation: [Vite build and deployment](https://vite.dev/gu
 
 ## Future development
 
-Connect a server-backed AI adapter with response validation and consent; add optional export/restore and cross-device sync; improve natural-language dates and languages; snapshot historical routine schedules; and perform a physical-device installation/accessibility audit. External calendars, notifications, wearable data, social features, accounts, and cloud commitments are intentionally outside this MVP.
+Evaluate optional local embeddings against a larger everyday-language dataset and real phone memory/latency budgets before adding them; add optional export/restore; improve date and language coverage; snapshot historical routine schedules; and perform physical-device installation/accessibility checks. External calendars, notifications, wearable data, social features, accounts, and cloud commitments are intentionally outside this MVP.

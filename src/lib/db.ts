@@ -1,4 +1,4 @@
-import { emptyData, type AppData } from '../types';
+import { migrateData, type AppData } from '../types';
 const DB_NAME = 'mindpilot-local-v1';
 let connection: Promise<IDBDatabase> | undefined;
 function open(): Promise<IDBDatabase> {
@@ -20,7 +20,7 @@ export async function readData(): Promise<AppData> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('app', 'readonly');
     const request = tx.objectStore('app').get('data');
-    tx.oncomplete = () => resolve(request.result ?? emptyData());
+    tx.oncomplete = () => { try { resolve(migrateData(request.result)); } catch (error) { reject(error); } };
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error ?? new Error('Reading local data was interrupted.'));
   });
@@ -36,7 +36,7 @@ export async function mutateData(change: (draft: AppData) => void): Promise<AppD
     let failure: unknown;
     request.onsuccess = () => {
       try {
-        result = request.result ?? emptyData();
+        result = migrateData(request.result);
         change(result);
         store.put(result, 'data');
       } catch (error) { failure = error; tx.abort(); }
