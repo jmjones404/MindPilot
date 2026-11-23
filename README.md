@@ -6,24 +6,22 @@ A functional, mobile-first personal organization PWA built with React, TypeScrip
 
 ## Run locally
 
-Use Node.js 22.12+ (tested with Node 24) and pnpm 11.25.0.
+Use Node.js 24, matching the GitHub Actions build.
 
 ```sh
 cd mindpilot
-corepack enable
-corepack prepare pnpm@11.25.0 --activate
-pnpm install --frozen-lockfile
-pnpm dev
+npm ci
+npm run dev
 ```
 
-Open the printed local address. If Node does not include Corepack, install pnpm using its official installation instructions. The lockfile pins the dependency graph. `pnpm-workspace.yaml` allows the esbuild compiler's install script.
+Open the printed local address under `/MindPilot/`. `package-lock.json` pins the npm dependency graph used by GitHub Actions. The original pnpm lockfile and workspace configuration are retained for existing pnpm users; deployment uses npm.
 
 ```sh
-pnpm build                 # TypeScript check + optimized app + service worker
-pnpm preview --port 4173   # Production preview; use this to test offline mode
-pnpm test                  # 21 domain/storage tests
-pnpm exec playwright install chromium
-pnpm test:e2e              # 5 browser integration tests against the production build
+npm run build                        # TypeScript check + optimized app + service worker
+npm run preview -- --port 4173        # Open http://localhost:4173/MindPilot/
+npm test                             # Domain, storage, and service-worker regression tests
+npx playwright install chromium
+npm run test:e2e                      # Browser integration tests against the production build
 ```
 
 The development server deliberately does not register a service worker. Build and preview before testing offline access or installation. The browser tests launch the production preview automatically if it is not already running. To use an existing Chrome executable, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to its full path. Test records live in isolated browser contexts and never seed the delivered app.
@@ -73,7 +71,9 @@ Statistics are defined explicitly:
 
 ## Offline and installation
 
-Open the production app once online and allow it to finish loading. Settings will report that the app is ready offline. The service worker precaches same-origin shell assets and serves them offline; IndexedDB provides all saved activities, routines, schedules, and progress. No external fonts, CDNs, or AI requests are needed at runtime. A new build waits for the user's **Update** action so unsaved edits are not interrupted.
+Open the production app once online and allow it to finish loading. Settings will report that the app is ready offline. The service worker precaches same-origin shell assets and serves them offline; IndexedDB provides all saved activities, routines, schedules, and progress. No external fonts, CDNs, or AI requests are needed at runtime. Update checks run when the app registers its worker, regains focus or connectivity, and hourly while visible. A new build waits for the user's **Update** action so unsaved edits are not interrupted.
+
+Each release uses a cache scoped to this app's URL and fingerprinted from the built assets. Installation rejects failed responses and HTML returned instead of JavaScript or CSS, preserving the last working release. Activation removes this app's obsolete shell caches without touching IndexedDB, preferences, or other projects' caches on the same origin.
 
 On **iPhone/iPad**, open the HTTPS app in Safari, use **Share → Add to Home Screen**, then launch the icon. On **Android**, open it in Chrome and use its install prompt or **Install app / Add to Home screen** menu item. The in-app install button appears when the browser exposes an install prompt. Installation is browser-controlled and may not be offered inside embedded browsers. The installed manifest requests `display: standalone`.
 
@@ -105,11 +105,17 @@ tests/
 
 ## Deploy
 
-This is a static client app. Run `pnpm install --frozen-lockfile` and `pnpm build`, then publish the **contents of `dist/`** at an HTTPS origin root. It does not need a Node server in production. Client navigation uses URL hashes. Keep `sw.js`, `manifest.webmanifest`, and icons at the origin root. For hosting elsewhere, remove or update the Sites-specific identity in `.openai/hosting.json`; never reuse another Site's project ID.
+GitHub Pages serves this project at **https://jmjones404.github.io/MindPilot/**. The case-sensitive Vite base is `/MindPilot/`; generated JavaScript, CSS, icons, the PWA manifest, and the service worker all use that path. Client navigation uses URL hashes and needs no server-side routing.
+
+In the repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. `.github/workflows/deploy.yml` runs `npm ci`, unit tests, `npm run build`, and browser tests on Node 24. Successful pushes to `main` upload only `dist/` and deploy it through the `github-pages` environment. Pull requests run the build and tests without publishing; manual deployment is also available from Actions on `main`.
+
+The deployment uses GitHub's temporary workflow token with `pages: write` and `id-token: write`; no personal access token or API key belongs in the project. Keep `package-lock.json` updated with dependency changes. The environment should allow deployment from `main`.
+
+For another static host, set `base` in `vite.config.ts` to that host's mount path (`/` for an origin root), rebuild, and publish the **contents of `dist/`**. The manifest and worker scope follow the same base. The existing `.openai/hosting.json` is Sites metadata; GitHub Pages does not use it. Never reuse another Site's project ID.
 
 Recommended host caching: revalidate `index.html`, `sw.js`, and the manifest; immutable long-lived caching is safe for the hashed files under `assets/`. Preserve old hashed assets through deployments if the host supports it. The bundled worker supports static hosts that vary responses by Origin. HTTPS (or localhost) is necessary for service workers and installation.
 
-This project is configured for private Sites hosting through `.openai/hosting.json`. Hosting authentication controls access to the static app; all app records are still local to each browser.
+GitHub Pages is public. App records remain local to each browser and origin; moving from another host does not transfer its IndexedDB data. Do not clear browser storage to refresh the app: use its **Update** action, or reload online to check for a new release.
 
 Relevant upstream documentation: [Vite build and deployment](https://vite.dev/guide/static-deploy), [Vite PWA update prompts](https://vite-pwa-org.netlify.app/guide/prompt-for-update.html), [Tailwind with Vite](https://tailwindcss.com/docs/installation/using-vite).
 
