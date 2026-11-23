@@ -1,0 +1,35 @@
+node_modules/
+dist/
+.DS_Store
+playwright-report/
+test-results/
+.sites-runtime/
+.env*
+!.env.example
+*.tsbuildinfo
+
+# Keep all environment files local, including example files.
+.env*
+
+# Credentials, private keys, and machine-specific authentication.
+.npmrc
+.yarnrc
+.netrc
+.ssh/
+.aws/
+.secrets/
+secrets.*
+credentials.*
+*service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Local caches, coverage, and diagnostic logs.
+.pnpm-store/
+coverage/
+*.log
