@@ -20,6 +20,8 @@ test('checklist edits and individual checks persist after offline refresh',async
  await page.getByRole('button',{name:'Confirm 1 activity'}).click();await page.getByRole('button',{name:'Open planner',exact:true}).click();
  await page.getByRole('button',{name:'Edit Get groceries',exact:true}).click();
  await page.getByRole('dialog').getByRole('checkbox',{name:'Check bread',exact:true}).check();await page.getByRole('button',{name:'Save changes',exact:true}).click();
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await expect(page.getByRole('status')).toContainText('Activity updated.');
  await page.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));await context.setOffline(true);await page.reload();
  await page.getByRole('button',{name:'Edit Get groceries',exact:true}).click();await expect(page.getByRole('dialog').getByRole('checkbox',{name:'Check bread',exact:true})).toBeChecked();
  expect((await saved(page)).tasks[0].checklist).toEqual([{text:'milk',done:true},{text:'a dozen eggs',done:false},{text:'bread',done:true},{text:'steak',done:false}]);
