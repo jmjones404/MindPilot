@@ -1,4 +1,4 @@
-import type { Task, TaskDraft } from '../types';
+import { uid, type AppData, type Task, type TaskDraft } from '../types';
 import { dateTime } from './dates';
 export function conflicts(draft: Pick<TaskDraft, 'date' | 'time' | 'duration' | 'kind'>, tasks: Task[], excludeId?: string): Task[] {
   if (draft.kind === 'note' || !draft.date || !draft.time) return [];
@@ -19,4 +19,15 @@ export function nextFreeSlot(date: string, time: string, duration: number, tasks
     if (!conflicts({ date, time: value, duration }, tasks).length) return value;
   }
   return null;
+}
+
+// Called inside the existing storage transaction, after explicit review approval.
+export function approveRoutine(draft: TaskDraft, state: AppData): TaskDraft {
+  const {saveAsRoutine, ...approved} = draft;
+  if (draft.kind === 'note' || !saveAsRoutine || !draft.recurrence) return approved;
+  const days = [...draft.recurrence.days].sort();
+  const existing = state.routines.find(r => r.name === draft.title && r.time === draft.time && r.duration === draft.duration && [...r.days].sort().join() === days.join());
+  const routineId = existing?.id ?? uid();
+  if (!existing) state.routines.push({id:routineId,name:draft.title,kind:'routine',days,time:draft.time,duration:draft.duration,exercises:[],createdAt:new Date().toISOString()});
+  return {...approved,routineId};
 }

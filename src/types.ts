@@ -15,6 +15,11 @@ export interface Task {
   duration: number; priority: boolean; completedAt: string | null;
   createdAt: string; notes: string; exercises?: Exercise[]; routineId?: string;
   kind?: ItemKind; subcategory?: string; sourceText?: string;
+  checklist?: { text: string; done: boolean }[];
+  recurrence?: { days: number[] };
+  preferredPeriod?: 'morning' | 'afternoon' | 'evening';
+  timeChoices?: string[];
+  saveAsRoutine?: boolean;
 }
 export interface Routine {
   id: string; name: string; kind: 'routine' | 'workout'; days: number[];
@@ -55,7 +60,10 @@ export function validateTask(task: TaskDraft) {
   if (task.title.length > 180) throw new Error('Keep the title under 180 characters.');
   if (!task.category.trim()) throw new Error('Choose a category.');
   if (task.kind && !['task', 'reminder', 'event', 'note'].includes(task.kind)) throw new Error('Choose a valid item type.');
+  if (task.checklist?.some(item => !item.text.trim())) throw new Error('Give each checklist item a name or remove it.');
   if (task.kind === 'note') return;
+  if (task.timeChoices?.length && !task.time) throw new Error('Confirm the ambiguous time, or explicitly keep this activity without a time.');
+  if (task.saveAsRoutine && (!task.recurrence?.days.length || !task.date || !task.time)) throw new Error('Choose recurring days, a date and a time before saving this routine.');
   if (task.time && !task.date) throw new Error('Choose a date for the start time.');
   if (task.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(task.time)) throw new Error('Choose a valid start time.');
   if (task.date) {

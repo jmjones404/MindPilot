@@ -56,25 +56,61 @@ export function extractTime(text: string): string {
   return text.match(/\b([01]\d|2[0-3]):([0-5]\d)\b/)?.[0] ?? '';
 }
 export function extractDuration(text: string) {
-  const match = text.match(/\bfor\s+(\d+(?:\.\d+)?)\s*(minutes?|mins?|hours?|hrs?)\b/i);
+  const match = text.match(/\b(?:for\s+)?(\d+(?:\.\d+)?)[ -]*(minutes?|mins?|hours?|hrs?)\b/i);
   return { duration: match ? Number(match[1]) * (/^(hour|hr)/i.test(match[2]) ? 60 : 1) : 30, span: match?.[0] ?? '' };
 }
 export function extractTemporal(text: string, now: Date) {
-  const date = extractDate(text, now), warnings = [...date.warnings];
+  const schedule = extractSchedule(text);
+  const withoutSchedule = schedule.spans.reduce((value, span) => value.replace(span, ' '), text);
+  const date = extractDate(withoutSchedule, now), warnings = [...date.warnings];
   const times = [...text.matchAll(/\b(?:noon|midnight|(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s*(?:am|pm)|(?:[01]\d|2[0-3]):[0-5]\d)\b/gi)].map(m => m[0]);
   const distinct = [...new Set(times.map(extractTime))];
-  const time = distinct.length === 1 ? distinct[0] : '';
+  let time = distinct.length === 1 ? distinct[0] : '';
+  const bare = !times.length ? text.match(/\bat\s+(0?\d|1\d|2[0-3])(?::([0-5]\d))?\b(?!\s*(?:am|pm))/i) : null;
+  let timeChoices: string[] = [];
+  if (bare) {
+    const hour = Number(bare[1]), minute = bare[2] || '00';
+    timeChoices = hour > 12 || hour === 0 ? [`${String(hour).padStart(2, '0')}:${minute}`] : [hour % 12, hour % 12 + 12].map(h => `${String(h).padStart(2, '0')}:${minute}`);
+    if (schedule.period) {
+      const [start, end] = periodHours[schedule.period];
+      const matching = timeChoices.filter(t => Number(t.slice(0, 2)) >= start && Number(t.slice(0, 2)) < end);
+      if (matching.length === 1) timeChoices = matching;
+    }
+    if (timeChoices.length === 1) { time = timeChoices[0]; timeChoices = []; }
+    else warnings.push(`“${bare[0]}” needs AM or PM. Confirm a time below, or keep it unscheduled.`);
+  }
   if (distinct.length > 1) warnings.push('Several times were found. Choose a start time and duration in review.');
   const timeMentioned = !!times.length || /\b(?:at\s+\d|morning|afternoon|evening|late|early)\b/i.test(text);
-  if (timeMentioned && !time && !distinct.length) warnings.push('The time is ambiguous. Choose a time if needed.');
+  if (timeMentioned && !time && !distinct.length && !bare && !schedule.period) warnings.push('The time is ambiguous. Choose a time if needed.');
   if (time && !date.date) warnings.push('A time was recognized, but its date is missing or unclear. Choose a date or clear the time before saving.');
   const duration = extractDuration(text);
-  let title = text;
+  let title = withoutSchedule;
+  if (bare) title = title.replace(bare[0], ' ');
   for (const span of [...date.spans, ...(time ? times : [])]) {
     const escaped = span.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     title = title.replace(new RegExp(`(?:\\b(?:on|by|at)\\s+)?\\b${escaped}\\b`, 'gi'), ' ');
   }
   if (duration.span) title = title.replace(duration.span, ' ');
-  title = title.replace(/\s+/g, ' ').replace(/^[,\s]+/, '').replace(/[,\s.!?]+$/, '').trim();
-  return { date: date.date, time, duration: duration.duration, durationMentioned: !!duration.span, title, dateMentioned: date.mentioned, timeMentioned, warnings, explanation: date.explanation };
+  title = title.replace(/[ \t]+/g, ' ').replace(/^[,\s]+/, '').replace(/[,\s.!?]+$/, '').trim();
+  return { date: date.date, time, duration: duration.duration, durationMentioned: !!duration.span, timeChoices, period: schedule.period, recurrence: schedule.days.length ? { days: schedule.days } : undefined, title, dateMentioned: date.mentioned, timeMentioned, warnings, explanation: date.explanation };
+}
+
+export const periodHours = { morning: [6, 12], afternoon: [12, 17], evening: [17, 22] } as const;
+export function extractSchedule(text: string) {
+  const spans: string[] = [];
+  const periodMatch = text.match(/\b(?:(?:in the|every)\s+)?(morning|afternoon|evening)\b/i);
+  const period = periodMatch?.[1].toLowerCase() as keyof typeof periodHours | undefined;
+  if (periodMatch) spans.push(periodMatch[0]);
+  let days: number[] = [];
+  const daily = text.match(/\b(?:every day|each day|daily)\b/i);
+  const weekdays = text.match(/\b(?:every weekday|on weekdays|weekdays)\b/i);
+  const weekends = text.match(/\b(?:every weekend|on weekends|weekends)\b/i);
+  const weekly = text.match(new RegExp(`\\b(?:every|each|on)\\s+((?:${DAY_NAMES.join('|')})s?(?:\\s*(?:,|and)\\s*(?:${DAY_NAMES.join('|')})s?)*)\\b`, 'i'));
+  if (daily || /^every /i.test(periodMatch?.[0] ?? '')) { days = [0,1,2,3,4,5,6]; if (daily) spans.push(daily[0]); }
+  else if (weekdays) { days = [1,2,3,4,5]; spans.push(weekdays[0]); }
+  else if (weekends) { days = [0,6]; spans.push(weekends[0]); }
+  else if (weekly && (/^(every|each)/i.test(weekly[0]) || /s\b/i.test(weekly[1]))) {
+    days = DAY_NAMES.flatMap((day, i) => new RegExp(`\\b${day}s?\\b`, 'i').test(weekly[1]) ? [i] : []); spans.push(weekly[0]);
+  }
+  return { period, days, spans };
 }

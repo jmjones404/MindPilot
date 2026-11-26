@@ -5,7 +5,7 @@ import { assistant } from '../services/organizerClient';
 import { MAX_INPUT_LENGTH } from '../services/assistant';
 import { proposeWorkout, type WorkoutResult } from '../services/workout';
 import { uid, validateTask, type Task, type TaskDraft } from '../types';
-import { conflicts } from '../lib/planning';
+import { approveRoutine, conflicts } from '../lib/planning';
 import { emptyPreference, normalizePhrase, validatePreference } from '../lib/preferences';
 import { timeLabel } from '../lib/dates';
 import { TaskFields } from '../components/TaskEditor';
@@ -61,7 +61,7 @@ export function MindDump({ incoming, navigate }: { incoming: { text: string; key
     const ok = await save(state => {
       if (!allowOverlap && proposals.some(t => conflicts(t, [...state.tasks, ...proposals], t.id).length)) throw new Error('Your schedule changed. Review the conflicts and try again.');
       for (const item of selected) {
-        state.tasks.push({ ...item.draft, title: item.draft.title.trim(), id: uid(), createdAt: new Date().toISOString(), completedAt: null });
+        state.tasks.push({ ...approveRoutine(item.draft, state), title: item.draft.title.trim(), id: uid(), createdAt: new Date().toISOString(), completedAt: null });
         if (item.remember && (item.draft.category !== item.original.category || item.draft.subcategory !== item.original.subcategory)) {
           const rule = { ...emptyPreference(), match: item.original.title, category: item.draft.category, subcategory: item.draft.subcategory ?? '', source: 'correction' as const };
           validatePreference(rule);

@@ -21,8 +21,8 @@ function inWorker(text: string, context: InterpretationContext): Promise<Interpr
   return new Promise((resolve, reject) => {
     const id = ++nextId, timer = setTimeout(stopWorker, 15_000);
     pending.set(id, { resolve, reject, timer });
-    // The parser needs preferences, not the entire activity history.
-    try { worker!.postMessage({ id, text, context: { ...context, data: { ...context.data, tasks: [], routineLogs: [] } } }); }
+    // Include pending schedules for availability, excluding completed history and logs.
+    try { worker!.postMessage({ id, text, context: { ...context, data: { ...context.data, tasks: context.data.tasks.filter(t => t.date && !t.completedAt), routineLogs: [] } } }); }
     catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }
   });
 }

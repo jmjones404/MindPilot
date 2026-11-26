@@ -22,7 +22,9 @@ function standaloneAction(text: string, terms: Term[]) {
 }
 export function splitThoughts(input: string): Thought[] {
   const result: Thought[] = [];
-  for (const paragraph of input.split(/[\n;]+/).map(s => s.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim()).filter(Boolean)) {
+  const blocks = input.split(/\n\s*\n/).flatMap(block => extractChecklist(block) ? [block] : block.split(/[\n;]+/));
+  for (const paragraph of blocks.map(s => s.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim()).filter(Boolean)) {
+    if (extractChecklist(paragraph)) { result.push({text: paragraph, action: true, sentence: paragraph}); continue; }
     for (const sentence of nlp(paragraph).json() as { text: string; terms: { text: string; tags: string[] }[] }[]) {
       const text = sentence.text;
       if (/^(?:do not|don['’]t(?! forget)|never|no need to|note\b|remember that\b|i (?:already|finished|completed|sent|paid|did|have already)|i['’]ve (?:already|finished|completed))\b/i.test(text)) {
@@ -70,3 +72,17 @@ export function activityTitle(text: string) {
 }
 
 export const isAction = (text: string) => !!text.trim() && standaloneAction(text, []);
+
+export function extractChecklist(text: string): { title: string; items: string[] } | undefined {
+  if (/[.!?]\s+\p{L}/u.test(text)) return;
+  const value = activityTitle(text).replace(/[.!?]+$/, '').trim();
+  const heading = value.match(/^(.+?(?:list|checklist)|(?:get |buy |do |run )?(?:groceries|shopping|errands)|packing(?: list)?)\s*[:,\n]\s*([\s\S]+)$/i);
+  const action = value.match(/^(buy|purchase|pick up|pack|bring)\s+([\s\S]+)$/i);
+  if (!heading && !action) return;
+  const body = heading?.[2] ?? action![2];
+  const items = body.split(/\s*(?:,|;|\n|\band\b)\s*/i).map(s => s.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
+  if (items.length < 2) return;
+  // Shopping object lists must not swallow an unrelated new action.
+  if (!heading && items.some(item => isAction(item))) return;
+  return { title: heading ? activityTitle(heading[1]) : /pack|bring/i.test(action![1]) ? 'Packing list' : 'Shopping list', items };
+}
